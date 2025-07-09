@@ -27,6 +27,7 @@ public class CreateTodoItemCommandHandler : IRequestHandler<CreateTodoItemComman
         {
             ListId = request.ListId,
             Title = request.Title,
+            Color = "#FFFFFF",
             Done = false
         };
 
