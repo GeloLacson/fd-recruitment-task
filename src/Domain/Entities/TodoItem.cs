@@ -1,4 +1,7 @@
-﻿namespace Todo_App.Domain.Entities;
+﻿using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json;
+
+namespace Todo_App.Domain.Entities;
 
 public class TodoItem : BaseAuditableEntity
 {
@@ -7,6 +10,17 @@ public class TodoItem : BaseAuditableEntity
     public string? Title { get; set; }
 
     public string? Note { get; set; }
+    
+    [NotMapped]
+    public List<string>? Tags { get; set; }
+
+    public string Tag
+    {
+        get => JsonSerializer.Serialize(Tags);
+        set => Tags = string.IsNullOrWhiteSpace(value)
+            ? new List<string>()
+            : JsonSerializer.Deserialize<List<string>>(value)!;
+    }
 
     public PriorityLevel Priority { get; set; }
 
