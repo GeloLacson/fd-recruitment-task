@@ -1,4 +1,4 @@
-import { Component, TemplateRef, OnInit } from '@angular/core';
+import { Component, TemplateRef, OnInit, OnDestroy } from '@angular/core';
 import { FormBuilder } from '@angular/forms';
 import { BsModalService, BsModalRef } from 'ngx-bootstrap/modal';
 import {
@@ -6,15 +6,15 @@ import {
   TodoListDto, TodoItemDto, PriorityLevelDto,
   CreateTodoListCommand, UpdateTodoListCommand,
   CreateTodoItemCommand, UpdateTodoItemDetailCommand
-} from '../web-api-client';
-import { flatMap } from 'rxjs';
+} from '../web-api-client'
+import { Subject, debounceTime } from 'rxjs';
 
 @Component({
   selector: 'app-todo-component',
   templateUrl: './todo.component.html',
   styleUrls: ['./todo.component.scss']
 })
-export class TodoComponent implements OnInit {
+export class TodoComponent implements OnInit, OnDestroy {
   debug = false;
   deleting = false;
   deleteCountDown = 0;
@@ -35,10 +35,15 @@ export class TodoComponent implements OnInit {
     priority: [''],
     note: [''],
     tags: [[]],
-    itemTags: ['']
+    itemTags: [''],
+    tagFilter: [null],
   });
-  filter: string [] = [];
-
+  filter: string[] = [];
+  source: 'button' | 'checkbox' = null;
+  search: string = '';
+  filteredToDoItems: TodoItemDto[] = [];
+  subject = new Subject<void>();
+  subs = [];
   get tags(): string[] {
     return this.itemDetailsFormGroup.get('tags')?.value || [];
   }
@@ -49,28 +54,39 @@ export class TodoComponent implements OnInit {
       .reduce((x, items) => x.concat(items), [] as TodoItemDto[]);
   }
 
-  get filteredToDoItems(): TodoItemDto[] {
-    
-
-    if (!this.filter || this.filter.length === 0) {
-      return this.selectedList?.items;
-    }
-
-    return this.selectedList?.items.filter(item => item.tags?.some(tag => this.filter.includes(tag)));
-  }
-
   get tagLists(): string[] {
     const tags = new Set<string>();
 
-      for (const item of this.allItems) {
-        for (const tag of item.tags || []) {
-          tags.add(tag);
-        }
+    for (const item of this.allItems) {
+      for (const tag of item.tags ?? []) {
+        tags.add(tag);
       }
+    }
 
-    return Array.from(tags);
+    return Array.from(tags).sort();
   }
 
+  get mostUsedTags(): string[] {
+    const tagWithRank = new Map<string, number>();
+
+    for (const item of this.allItems) {
+      for (const tag of item.tags) {
+        tagWithRank.set(tag, (tagWithRank.get(tag) || 0) + 1);
+      }
+    }
+    return Array.from(tagWithRank.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([tag]) => tag);
+  }
+
+  get isMostUsedSelected(): boolean {
+    return this.filter.length > 0 && this.source === 'button';
+  }
+
+  get isDefaultFiltersSelected(): boolean {
+    return this.filter.length > 0 && this.source === 'checkbox';
+  }
 
   constructor(
     private listsClient: TodoListsClient,
@@ -86,17 +102,41 @@ export class TodoComponent implements OnInit {
         this.priorityLevels = result.priorityLevels;
         if (this.lists.length) {
           this.selectedList = this.lists[0];
+          this.filterItems();
         }
+        const sub = this.subject.pipe(
+          debounceTime(300)
+        ).subscribe(() => {
+          this.filterItems();
+        });
+
+        this.subs.push(sub);
       },
       error => console.error(error)
     );
   }
 
+  ngOnDestroy(): void {
+    this.subs.forEach(s => s.unsubscribe());
+  }
+
   // Lists
-  remainingItems(list: TodoListDto): number { 
-      return !this.filter || this.filter.length === 0
-        ? list.items.filter(t => !t.done).length
-        : list.items.filter(item => item.tags?.some(tag => this.filter.includes(tag)) && !item.done).length;
+  remainingItems(list: TodoListDto): number {
+    let itemList = list.items;
+    if (this.filter && this.filter.length > 0) {
+      itemList = itemList.filter(item =>
+        item.tags?.some(tag => this.filter.includes(tag))
+      );
+    }
+
+    if (this.search && this.search.trim()) {
+      const searchText = this.search.toLowerCase();
+      itemList = itemList.filter(item =>
+        item.title?.toLowerCase().includes(searchText)
+      );
+    }
+
+    return itemList.filter(item => !item.done).length;
   }
 
   showNewListModal(template: TemplateRef<any>): void {
@@ -181,7 +221,7 @@ export class TodoComponent implements OnInit {
 
     this.itemDetailsModalRef = this.modalService.show(template);
     this.itemDetailsModalRef.onHidden.subscribe(() => {
-        this.stopDeleteCountDown();
+      this.stopDeleteCountDown();
     });
   }
 
@@ -317,16 +357,43 @@ export class TodoComponent implements OnInit {
     this.itemDetailsFormGroup.patchValue({ tags: updatedTags });
   }
 
-  toggleTagFilter(tag: string): void {
+  toggleTagFilter(tag: string, source: 'button' | 'checkbox'): void {
     const filterIndex = this.filter.indexOf(tag);
     if (filterIndex === -1) {
       this.filter.push(tag);
+      this.source = source;
     } else {
       this.filter.splice(filterIndex, 1);
     }
+
+    if (!this.filter || this.filter.length === 0) {
+      this.source = null;
+    }
+  }
+
+  filterItems() {
+    if (!this.selectedList) {
+      this.filteredToDoItems = [];
+      return;
+    }
+
+    this.filteredToDoItems = this.selectedList.items.filter(item => {
+      if (this.filter.length && !this.filter.some(f => item.tags.includes(f))) {
+        return false;
+      }
+      if (this.search) {
+        return item.title.toLowerCase().includes(this.search.toLowerCase());
+      }
+      return true;
+    });
+  }
+
+  onLoadItems() {
+    this.subject.next();
   }
 
   clearTagFilter(): void {
     this.filter = [];
+    this.source = null;
   }
 }
