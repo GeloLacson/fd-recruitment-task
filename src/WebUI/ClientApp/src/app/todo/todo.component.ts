@@ -7,6 +7,7 @@ import {
   CreateTodoListCommand, UpdateTodoListCommand,
   CreateTodoItemCommand, UpdateTodoItemDetailCommand
 } from '../web-api-client';
+import { flatMap } from 'rxjs';
 
 @Component({
   selector: 'app-todo-component',
@@ -32,8 +33,43 @@ export class TodoComponent implements OnInit {
     id: [null],
     listId: [null],
     priority: [''],
-    note: ['']
+    note: [''],
+    tags: [[]],
+    itemTags: ['']
   });
+  filter: string [] = [];
+
+  get tags(): string[] {
+    return this.itemDetailsFormGroup.get('tags')?.value || [];
+  }
+
+  get allItems(): TodoItemDto[] {
+    return this.lists
+      .map(list => list.items)
+      .reduce((x, items) => x.concat(items), [] as TodoItemDto[]);
+  }
+
+  get filteredToDoItems(): TodoItemDto[] {
+    
+
+    if (!this.filter || this.filter.length === 0) {
+      return this.selectedList?.items;
+    }
+
+    return this.selectedList?.items.filter(item => item.tags?.some(tag => this.filter.includes(tag)));
+  }
+
+  get tagLists(): string[] {
+    const tags = new Set<string>();
+
+      for (const item of this.allItems) {
+        for (const tag of item.tags || []) {
+          tags.add(tag);
+        }
+      }
+
+    return Array.from(tags);
+  }
 
 
   constructor(
@@ -57,8 +93,10 @@ export class TodoComponent implements OnInit {
   }
 
   // Lists
-  remainingItems(list: TodoListDto): number {
-    return list.items.filter(t => !t.done).length;
+  remainingItems(list: TodoListDto): number { 
+      return !this.filter || this.filter.length === 0
+        ? list.items.filter(t => !t.done).length
+        : list.items.filter(item => item.tags?.some(tag => this.filter.includes(tag))).length;
   }
 
   showNewListModal(template: TemplateRef<any>): void {
@@ -138,6 +176,7 @@ export class TodoComponent implements OnInit {
   // Items
   showItemDetailsModal(template: TemplateRef<any>, item: TodoItemDto): void {
     this.selectedItem = item;
+    this.selectedItem.tags ??= [];
     this.itemDetailsFormGroup.patchValue(this.selectedItem);
 
     this.itemDetailsModalRef = this.modalService.show(template);
@@ -163,6 +202,7 @@ export class TodoComponent implements OnInit {
 
         this.selectedItem.priority = item.priority;
         this.selectedItem.note = item.note;
+        this.selectedItem.tags = item.tags;
         this.itemDetailsModalRef.hide();
         this.itemDetailsFormGroup.reset();
       },
@@ -260,5 +300,33 @@ export class TodoComponent implements OnInit {
     clearInterval(this.deleteCountDownInterval);
     this.deleteCountDown = 0;
     this.deleting = false;
+  }
+
+  addTag(): void {
+    const newTag = this.itemDetailsFormGroup.get('itemTags')?.value.trim();
+    if (newTag && !this.tags.includes(newTag)) {
+      const updatedTags = [...this.tags, newTag];
+      this.itemDetailsFormGroup.patchValue({ tags: updatedTags });
+    }
+
+    this.itemDetailsFormGroup.patchValue({ itemTags: '' });
+  }
+
+  removeTag(tagToRemove: string): void {
+    const updatedTags = this.tags.filter(tag => tag !== tagToRemove);
+    this.itemDetailsFormGroup.patchValue({ tags: updatedTags });
+  }
+
+  toggleTagFilter(tag: string): void {
+    const filterIndex = this.filter.indexOf(tag);
+    if (filterIndex === -1) {
+      this.filter.push(tag);
+    } else {
+      this.filter.splice(filterIndex, 1);
+    }
+  }
+
+  clearTagFilter(): void {
+    this.filter = [];
   }
 }

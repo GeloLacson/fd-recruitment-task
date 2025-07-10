@@ -2,6 +2,18 @@
 
 <p>This is a complex todo list component.</p>
 
+<div class="tag-filter mb-3">
+  <strong class="me-2">Filter items by tag:</strong>
+  <button class="btn btn-sm me-1 mb-1"
+          *ngFor="let tag of tagLists"
+          [class.btn-primary]="filter.includes(tag)"
+          [class.btn-outline-primary]="!filter.includes(tag)"
+          (click)="toggleTagFilter(tag)">
+    #{{ tag }}
+  </button>
+  <button *ngIf="filter" class="btn btn-sm btn-link text-decoration-none" (click)="clearTagFilter()">Clear</button>
+</div>
+
 <p *ngIf="!lists"><em>Loading...</em></p>
 
 <div *ngIf="lists">
@@ -38,23 +50,26 @@
         </button>
       </div>
       <ul id="todo-items" class="list-group mb-2">
-        <li class="list-group-item" *ngFor="let item of selectedList.items; index as i">
+        <li class="list-group-item" *ngFor="let item of filteredToDoItems; index as i">
+          <div class="mb-1">
+            <small><i *ngFor="let tag of item.tags" class="me-2">#{{ tag }}</i></small>
+          </div>
           <div class="d-flex">
             <div class="todo-item-checkbox">
               <input type="checkbox" [(ngModel)]="item.done" (change)="updateItem(item)" />
             </div>
             <div class="flex-fill">
               <input id="{{ 'itemTitle' + i }}" *ngIf="item == selectedItem" type="text"
-                class="form-control item-input-control" [(ngModel)]="item.title" (keyup.enter)="updateItem(item, true)"
-                (blur)="updateItem(item)" autofocus="autofocus" />
+                     class="form-control item-input-control" [(ngModel)]="item.title" (keyup.enter)="updateItem(item, true)"
+                     (blur)="updateItem(item)" autofocus="autofocus" />
               <div class="todo-item-title" *ngIf="item != selectedItem" [ngClass]="{ 'done-todo': item.done }"
-                (click)="editItem(item, 'itemTitle' + i)" class="form-control item-input-control">
+                   (click)="editItem(item, 'itemTitle' + i)" class="form-control item-input-control">
                 <span>{{ item.title }}</span>
               </div>
             </div>
             <div class="todo-item-commands">
               <button *ngIf="item.id != 0" (click)="showItemDetailsModal(itemDetailsModalTemplate, item)"
-                class="btn btn-default btn-xs" role="button">
+                      class="btn btn-default btn-xs" role="button">
                 <i class="bi bi-three-dots-vertical"></i>
               </button>
             </div>
@@ -126,6 +141,21 @@
       <div class="form-group">
         <label for="note">Note</label>
         <textarea id="note" class="form-control" rows="3" formControlName="note"></textarea>
+      </div>
+      <div class="form-group">
+        <label for="tags">Tags</label>
+        <div class="tag-editor">
+          <span class="tag" *ngFor="let tag of tags">
+            #{{ tag }}
+            <button type="button" (click)="removeTag(tag)">×</button>
+          </span>
+          <input id="tags"
+                 type="text"
+                 formControlName="itemTags"
+                 (keydown.enter)="addTag()"
+                 (blur)="addTag()"
+                 placeholder="Add tag..." />
+        </div>
       </div>
     </form>
     <div *ngIf="debug">
