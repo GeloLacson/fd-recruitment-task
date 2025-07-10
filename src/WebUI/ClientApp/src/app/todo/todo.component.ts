@@ -96,7 +96,7 @@ export class TodoComponent implements OnInit {
   remainingItems(list: TodoListDto): number { 
       return !this.filter || this.filter.length === 0
         ? list.items.filter(t => !t.done).length
-        : list.items.filter(item => item.tags?.some(tag => this.filter.includes(tag))).length;
+        : list.items.filter(item => item.tags?.some(tag => this.filter.includes(tag)) && !item.done).length;
   }
 
   showNewListModal(template: TemplateRef<any>): void {
