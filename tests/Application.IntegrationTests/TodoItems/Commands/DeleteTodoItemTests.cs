@@ -32,7 +32,8 @@ public class DeleteTodoItemTests : BaseTestFixture
         var itemId = await SendAsync(new CreateTodoItemCommand
         {
             ListId = listId,
-            Title = "New Item"
+            Title = "New Item",
+            Color = "#000000"
         });
 
         await SendAsync(new DeleteTodoItemCommand(itemId));
