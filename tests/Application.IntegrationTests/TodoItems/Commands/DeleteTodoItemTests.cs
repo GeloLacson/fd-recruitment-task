@@ -1,4 +1,5 @@
 ﻿using FluentAssertions;
+using Namotion.Reflection;
 using NUnit.Framework;
 using Todo_App.Application.Common.Exceptions;
 using Todo_App.Application.TodoItems.Commands.CreateTodoItem;
@@ -32,13 +33,13 @@ public class DeleteTodoItemTests : BaseTestFixture
         var itemId = await SendAsync(new CreateTodoItemCommand
         {
             ListId = listId,
-            Title = "New Item"
+            Title = "New Item",
         });
 
         await SendAsync(new DeleteTodoItemCommand(itemId));
 
         var item = await FindAsync<TodoItem>(itemId);
 
-        item.Should().BeNull();
+        item.isDeleted.Should().BeTrue();
     }
 }
