@@ -490,6 +490,13 @@
           "note": {
             "type": "string",
             "nullable": true
+          },
+          "tags": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -591,6 +598,12 @@
           "note": {
             "type": "string",
             "nullable": true
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },

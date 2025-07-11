@@ -2,6 +2,50 @@
 
 <p>This is a complex todo list component.</p>
 
+<div class="tag-filter mb-3 d-flex align-items-center flex-wrap gap-2" *ngIf="!isDefaultFiltersSelected">
+  <div class="d-flex align-items-center flex-wrap gap-1">
+    <strong>Top 5 most used tag:</strong>
+    <button class="btn btn-sm"
+            *ngFor="let tag of mostUsedTags"
+            [class.btn-primary]="filter.includes(tag)"
+            [class.btn-outline-primary]="!filter.includes(tag)"
+            (click)="toggleTagFilter(tag, 'button'); onLoadItems()">
+      #{{ tag }}
+    </button>
+    <button *ngIf="filter.length"
+            class="btn btn-sm btn-link text-decoration-none"
+            (click)="clearTagFilter(); onLoadItems()">
+      Clear
+    </button>
+  </div>
+
+  <div class="ms-auto d-flex align-items-center">
+    <label for="itemSearch" class="me-2 mb-0"><strong>Search:</strong></label>
+    <input id="itemSearch"
+           type="text"
+           [(ngModel)]="search"
+           (blur)="onLoadItems()"
+           (keyup.enter)="onLoadItems()"
+           class="form-control form-control-sm" />
+  </div>
+</div>
+<hr />
+<div *ngIf="!isMostUsedSelected">
+  <h5>Filter by Tags</h5>
+  <div class="tag-filters">
+    <div *ngFor="let tag of tagLists">
+      <label>
+        <input type="checkbox"
+               [checked]="filter.includes(tag)"
+               (change)="toggleTagFilter(tag, 'checkbox'); onLoadItems()" />
+        {{ tag }}
+      </label>
+    </div>
+  </div>
+
+  <button class="btn btn-sm btn-secondary mt-2" (click)="clearTagFilter(); onLoadItems()">Clear Filters</button>
+
+</div>
 <p *ngIf="!lists"><em>Loading...</em></p>
 
 <div *ngIf="lists">
@@ -11,13 +55,13 @@
       <div class="clearfix">
         <h2 class="float-start">Lists</h2>
         <button class="btn btn-default float-end" title="New List..."
-          (click)="showNewListModal(newListModalTemplate)">
+                (click)="showNewListModal(newListModalTemplate)">
           <i class="bi bi-journal-plus"></i>
         </button>
       </div>
       <ul class="list-group">
         <li *ngFor="let list of lists; index as i" class="list-group-item"
-          [ngClass]="{ 'active': selectedList == list }" (click)="selectedList = list">
+            [ngClass]="{ 'active': selectedList == list }" (click)="selectedList = list; filterItems()">
           <div class="clearfix">
             <div class="float-start">
               {{ list.title }}
@@ -33,28 +77,31 @@
       <div class="clearfix">
         <h2 class="float-start">{{ selectedList.title }}</h2>
         <button id="listOptions" class="btn btn-default float-end" title="List Options..."
-          (click)="showListOptionsModal(listOptionsModalTemplate)">
+                (click)="showListOptionsModal(listOptionsModalTemplate)">
           <i class="bi bi-three-dots-vertical"></i>
         </button>
       </div>
       <ul id="todo-items" class="list-group mb-2">
-        <li class="list-group-item" *ngFor="let item of selectedList.items; index as i">
+        <li class="list-group-item" *ngFor="let item of filteredToDoItems; index as i">
+          <div class="mb-1">
+            <small><i *ngFor="let tag of item.tags" class="me-2">#{{ tag }}</i></small>
+          </div>
           <div class="d-flex">
             <div class="todo-item-checkbox">
               <input type="checkbox" [(ngModel)]="item.done" (change)="updateItem(item)" />
             </div>
             <div class="flex-fill">
               <input id="{{ 'itemTitle' + i }}" *ngIf="item == selectedItem" type="text"
-                class="form-control item-input-control" [(ngModel)]="item.title" (keyup.enter)="updateItem(item, true)"
-                (blur)="updateItem(item)" autofocus="autofocus" />
+                     class="form-control item-input-control" [(ngModel)]="item.title" (keyup.enter)="updateItem(item, true)"
+                     (blur)="updateItem(item)" autofocus="autofocus" />
               <div class="todo-item-title" *ngIf="item != selectedItem" [ngClass]="{ 'done-todo': item.done }"
-                (click)="editItem(item, 'itemTitle' + i)" class="form-control item-input-control">
+                   (click)="editItem(item, 'itemTitle' + i)" class="form-control item-input-control">
                 <span>{{ item.title }}</span>
               </div>
             </div>
             <div class="todo-item-commands">
               <button *ngIf="item.id != 0" (click)="showItemDetailsModal(itemDetailsModalTemplate, item)"
-                class="btn btn-default btn-xs" role="button">
+                      class="btn btn-default btn-xs" role="button">
                 <i class="bi bi-three-dots-vertical"></i>
               </button>
             </div>
@@ -83,7 +130,7 @@
     <div class="form-group">
       <label for="inputListTitle">Title</label>
       <input type="text" class="form-control" id="inputListTitle" placeholder="List name..."
-        [(ngModel)]="listOptionsEditor.title" (keyup.enter)="updateListOptions()" />
+             [(ngModel)]="listOptionsEditor.title" (keyup.enter)="updateListOptions()" />
     </div>
     <div *ngIf="debug">
       <pre>{{ listOptionsEditor | json }}</pre>
@@ -126,6 +173,21 @@
       <div class="form-group">
         <label for="note">Note</label>
         <textarea id="note" class="form-control" rows="3" formControlName="note"></textarea>
+      </div>
+      <div class="form-group">
+        <label for="tags">Tags</label>
+        <div class="tag-editor">
+          <span class="tag" *ngFor="let tag of tags">
+            #{{ tag }}
+            <button type="button" (click)="removeTag(tag)">×</button>
+          </span>
+          <input id="tags"
+                 type="text"
+                 formControlName="itemTags"
+                 (keydown.enter)="addTag()"
+                 (blur)="addTag()"
+                 placeholder="Add tag..." />
+        </div>
       </div>
     </form>
     <div *ngIf="debug">
@@ -177,7 +239,7 @@
     <div class="form-group">
       <label for="title">Title</label>
       <input type="text" class="form-control" id="title" placeholder="List title..." [(ngModel)]="newListEditor.title"
-        [ngClass]="{ 'is-invalid': newListEditor.error }" (keyup.enter)="addList()" />
+             [ngClass]="{ 'is-invalid': newListEditor.error }" (keyup.enter)="addList()" />
       <div *ngIf="newListEditor.error" class="invalid-feedback">
         {{ newListEditor.error }}
       </div>
